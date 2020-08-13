@@ -1,0 +1,316 @@
+package life;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+
+public class GameOfLife extends JFrame {
+
+    priate static final int WIDTH = 815;
+    private static final int HEIGHT = 637;
+    private static Universe life = new Universe(60);
+    private static char[][] universe = life.createUniverse();
+    static JLabel genLabel = new JLabel();
+    static JLabel aliveLabel = new JLabel();
+    Display display = new Display(universe);
+    Banner banner = new Banner();
+
+    Timer timer = new Timer(500, actionEvent -> {
+        Universe nextGen = new Universe(universe);
+        genLabel.setText("Generations #" + nextGen.genCounter());
+        aliveLabel.setText("Alive: " + nextGen.aliveCounter());
+        universe = nextGen.nextGen().clone();
+        display.update(universe);
+        repaint();
+    });
+
+    public GameOfLife() {
+        super("Game of Life");
+        setPreferredSize(new Dimension(WIDTH, HEIGHT));
+        setMinimumSize(new Dimension(WIDTH, HEIGHT));
+        setMaximumSize(new Dimension(WIDTH, HEIGHT));
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setResizable(false);
+        setVisible(true);
+
+        genLabel.setName("GenerationLabel");
+        genLabel.setText("Generations #1");
+        genLabel.setBounds(12, 150, 100, 10);
+
+        aliveLabel.setName("AliveLabel");
+        aliveLabel.setText("Alive: " + Universe.aliveCounter(universe));
+        aliveLabel.setBounds(12, 167, 100, 10);
+
+        banner.add(genLabel);
+        banner.add(aliveLabel);
+        add(banner);
+        add(display);
+    }
+
+    private class Banner extends JPanel {
+
+        Banner() {
+            setLayout(null);
+            setSize(200, 600);
+
+            JLabel sliderLabel = new JLabel("Evolution speed");
+            sliderLabel.setBounds(55, 75, 100, 10);
+
+            add(new StartButton());
+            add(new ResetButton());
+            add(new PauseButton());
+            add(sliderLabel);
+            add(new Slider());
+        }
+
+        public void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            setBackground(Color.GRAY);
+        }
+    }
+
+    private class Display extends JPanel {
+
+        char[][] universe;
+
+        Display(char[][] universe) {
+            this.universe = universe;
+            setLayout(null);
+            setBounds(200, 0, 600, 600);
+            setSize(new Dimension(600, 600));
+            setBorder(new EmptyBorder(0, 0, 0, 0));
+        }
+
+        public void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            setBackground(Color.WHITE);
+            g.setColor(Color.DARK_GRAY);
+
+            // Vertical lines (60)
+            for (int i = 200; i <= 800; i += 10) {
+                g.drawLine(i, 0, i, 600);
+            }
+
+            // Horizontal lines
+            for (int i = 0; i <= 600; i += 10) {
+                g.drawLine(200, i, 800, i);
+            }
+
+            // Paint universe
+            for (int i = 0; i < 60; i++) {
+                for (int j = 0; j < 60; j++) {
+                    if (universe[i][j] == 'O') {
+                        g.setColor(Color.DARK_GRAY);
+                        g.fillRect(i * 10 + 200, j * 10, 10, 10);
+                    }
+                }
+            }
+        }
+
+        void update(char[][] universe) {
+            this.universe = universe;
+            repaint();
+        }
+    }
+
+    private class ResetButton extends JButton {
+
+        ResetButton() {
+            super("Reset");
+            setBounds(10, 35, 180, 30);
+            setName("ResetButton");
+
+            addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent actionEvent) {
+                    timer.stop();
+                    universe = life.createUniverse();
+                    genLabel.setText("Generation #1");
+                    aliveLabel.setText("Alive: " + Universe.aliveCounter(universe));
+
+                    display.update(universe);
+                    banner.repaint();
+                    Universe.resetGenCounter();
+                    repaint();
+                }
+            });
+        }
+    }
+
+    private class PauseButton extends JToggleButton {
+        PauseButton() {
+            super("Pause");
+
+            setBounds(100, 5, 90, 30);
+            setName("PlayToggleButton");
+            addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent actionEvent) {
+                    if (isSelected()) {
+                        timer.stop();
+                        setText("Resume");
+                    } else {
+                        timer.start();
+                        setText("Pause");
+                    }
+                    repaint();
+                }
+            });
+        }
+    }
+
+    private class StartButton extends JButton {
+        StartButton() {
+            super("Start");
+            setBounds(10, 5, 90, 30);
+            addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent actionEvent) {
+                    timer.start();
+                }
+            });
+        }
+    }
+
+    private class Slider extends JSlider {
+        static final int MIN = 0;
+        static final int INIT = 500;
+        static final int MAX = 1000;
+
+        Slider() {
+            super(HORIZONTAL, MIN, MAX, INIT);
+            setBounds(4, 90, 193, 50);
+            setMajorTickSpacing(250);
+            setPaintTicks(true);
+            setPaintLabels(true);
+            setToolTipText("Speed");
+            setBackground(Color.GRAY);
+
+            addChangeListener(new ChangeListener() {
+                @Override
+                public void stateChanged(ChangeEvent changeEvent) {
+                    timer.setDelay(getValue());
+                }
+            });
+        }
+    }
+}
+
+
+
+package life;
+
+import java.util.Random;
+
+class Universe {
+    private char[][] universe;
+    private int sizeOfTheUniverse;
+    static int genCounter = 1;
+
+    // Constructor for the initial universe
+    Universe(int size) {
+        this.sizeOfTheUniverse = size;
+    }
+
+    // Next Generation constructor
+    Universe(char[][] universe) {
+        this.universe = universe;
+    }
+
+    // Create initial universe
+    char[][] createUniverse() {
+        Random random = new Random(new Random().nextLong());
+        char[][] universe = new char[sizeOfTheUniverse][sizeOfTheUniverse];
+        for (int i = 0; i < sizeOfTheUniverse; i++) {
+            for (int j = 0; j < sizeOfTheUniverse; j++) {
+                universe[i][j] = random.nextBoolean() ? 'O' : ' ';
+            }
+        }
+        return universe;
+    }
+
+    // Create next generation of the universe
+    protected char[][] nextGen() {
+        int size = universe.length;
+        char[][] nextGen = new char[size][size];
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+
+                int lifeCounter = neighbourLifeCounter(universe, i, j);
+
+                if (lifeCounter == 3 && universe[i][j] == ' ') {
+                    nextGen[i][j] = 'O';
+                } else if ((lifeCounter < 2 || lifeCounter > 3) && universe[i][j] == 'O') {
+                    nextGen[i][j] = ' ';
+                } else {
+                    nextGen[i][j] = universe[i][j];
+                }
+            }
+        }
+
+        return nextGen;
+    }
+
+    // Count "alive" neighbours
+    private int neighbourLifeCounter(char[][] universe, int x, int y) {
+        int lifeCounter = 0;
+        int size = universe.length;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+
+                int row = (x + i + size) % size;
+                int col = (y + j + size) % size;
+
+                if (universe[row][col] == 'O') {
+                    lifeCounter++;
+                }
+            }
+        }
+        if (universe[x][y] == 'O') {
+            lifeCounter--;
+        }
+        return lifeCounter;
+    }
+
+    // Count "alive" cells in current universe
+    protected int aliveCounter() {
+        int alive = 0;
+        for (char[] row : universe) {
+            for (char value : row) {
+                alive = value == 'O' ? alive + 1 : alive;
+            }
+        }
+        return alive;
+    }
+
+    protected static int aliveCounter(char[][] universe) {
+        int alive = 0;
+        for (char[] row : universe) {
+            for (char value : row) {
+                alive = value == 'O' ? alive + 1 : alive;
+            }
+        }
+        return alive;
+    }
+
+
+    protected int genCounter() {
+        return genCounter++;
+    }
+
+    protected static void resetGenCounter() {
+        genCounter = 1;
+    }
+
+}
+
+public class Main {
+    public static void main(String[] args) throws InterruptedException {
+        new GameOfLife();
+    }
+}
